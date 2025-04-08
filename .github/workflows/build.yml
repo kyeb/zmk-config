@@ -8,17 +8,12 @@ jobs:
     container:
       image: zmkfirmware/zmk-build-arm:stable
     name: Build
+    strategy:
+      matrix:
+        shield: [hillside46_left, hillside46_right]
     steps:
-      - name: Prepare variables
-        shell: sh -x {0}
-        run: |
-          echo "extra_cmake_args=-DSHIELD=hillside46" >> $GITHUB_ENV
-          echo "artifact_name=hillside46-nice_nano_v2-zmk" >> $GITHUB_ENV
-          echo "display_name=hillside46 - nice_nano_v2" >> $GITHUB_ENV
-          echo "zephyr_version=${ZEPHYR_VERSION}" >> $GITHUB_ENV
-
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Cache west modules
         uses: actions/cache@v4
@@ -47,27 +42,22 @@ jobs:
       - name: West Zephyr export
         run: west zephyr-export
 
-      - name: West Build (${{ env.display_name }})
-        shell: sh -x {0}
-        run: west build -s zmk/app -b nice_nano_v2 -- -DZMK_CONFIG=${GITHUB_WORKSPACE}/config ${{ env.extra_cmake_args }}
-
-      - name: ${{ env.display_name }} Kconfig file
-        run: grep -v -e "^#" -e "^$" build/zephyr/.config | sort
-
-      - name: Rename artifacts
+      - name: Build Firmware
         shell: sh -x {0}
         run: |
-          mkdir build/artifacts
-          if [ -f build/zephyr/zmk.uf2 ]
-          then
+          echo "extra_cmake_args=-DSHIELD=${{ matrix.shield }}" >> $GITHUB_ENV
+          echo "artifact_name=${{ matrix.shield }}-nice_nano_v2-zmk" >> $GITHUB_ENV
+          echo "display_name=${{ matrix.shield }} - nice_nano_v2" >> $GITHUB_ENV
+          west build -s zmk/app -b nice_nano_v2 -- -DZMK_CONFIG=${GITHUB_WORKSPACE}/config ${{ env.extra_cmake_args }}
+          mkdir -p build/artifacts
+          if [ -f build/zephyr/zmk.uf2 ]; then
             cp build/zephyr/zmk.uf2 "build/artifacts/${{ env.artifact_name }}.uf2"
-          elif [ -f build/zephyr/zmk.bin ]
-          then
+          elif [ -f build/zephyr/zmk.bin ]; then
             cp build/zephyr/zmk.bin "build/artifacts/${{ env.artifact_name }}.bin"
           fi
 
-      - name: Archive (${{ env.display_name }})
+      - name: Archive Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: firmware
+          name: firmware-${{ matrix.shield }}
           path: build/artifacts
