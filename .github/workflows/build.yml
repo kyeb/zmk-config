@@ -1,5 +1,73 @@
+name: Build Firmware
+
 on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
-    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@32ae776c42215d7302ab47787cbfb47298ccb532
+    runs-on: ubuntu-latest
+    container:
+      image: zmkfirmware/zmk-build-arm:stable
+    name: Build
+    steps:
+      - name: Prepare variables
+        shell: sh -x {0}
+        run: |
+          echo "extra_cmake_args=-DSHIELD=hillside46" >> $GITHUB_ENV
+          echo "artifact_name=hillside46-nice_nano_v2-zmk" >> $GITHUB_ENV
+          echo "display_name=hillside46 - nice_nano_v2" >> $GITHUB_ENV
+          echo "zephyr_version=${ZEPHYR_VERSION}" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Cache west modules
+        uses: actions/cache@v3.0.11
+        continue-on-error: true
+        env:
+          cache_name: cache-zephyr-${{ env.zephyr_version }}-modules
+        with:
+          path: |
+            modules/
+            tools/
+            zephyr/
+            bootloader/
+            zmk/
+          key: ${{ runner.os }}-build-${{ env.cache_name }}-${{ hashFiles('**/west.yml', '**/build.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache_name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
+      - name: West Init
+        run: west init -l config
+
+      - name: West Update
+        run: west update
+
+      - name: West Zephyr export
+        run: west zephyr-export
+
+      - name: West Build (${{ env.display_name }})
+        shell: sh -x {0}
+        run: west build -s zmk/app -b nice_nano_v2 -- -DZMK_CONFIG=${GITHUB_WORKSPACE}/config ${{ env.extra_cmake_args }}
+
+      - name: ${{ env.display_name }} Kconfig file
+        run: grep -v -e "^#" -e "^$" build/zephyr/.config | sort
+
+      - name: Rename artifacts
+        shell: sh -x {0}
+        run: |
+          mkdir build/artifacts
+          if [ -f build/zephyr/zmk.uf2 ]
+          then
+            cp build/zephyr/zmk.uf2 "build/artifacts/${{ env.artifact_name }}.uf2"
+          elif [ -f build/zephyr/zmk.bin ]
+          then
+            cp build/zephyr/zmk.bin "build/artifacts/${{ env.artifact_name }}.bin"
+          fi
+
+      - name: Archive (${{ env.display_name }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: build/artifacts
