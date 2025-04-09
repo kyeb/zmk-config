@@ -51,17 +51,41 @@ jobs:
           west build -s zmk/app -b nice_nano_v2 -- -DZMK_CONFIG=${GITHUB_WORKSPACE}/config ${{ env.extra_cmake_args }}
           echo "Current directory: $(pwd)"
           echo "Contents of build directory:"
-          ls -la build/
-          echo "Contents of build/zephyr directory:"
-          ls -la build/zephyr/
-          mkdir -p build/artifacts
-          if [ -f build/zephyr/zmk.uf2 ]; then
-            cp build/zephyr/zmk.uf2 "build/artifacts/${{ env.artifact_name }}.uf2"
-          elif [ -f build/zephyr/zmk.bin ]; then
-            cp build/zephyr/zmk.bin "build/artifacts/${{ env.artifact_name }}.bin"
+          ls -la build/ || echo "build directory does not exist"
+          
+          # Check if build/zephyr directory exists
+          if [ -d "build/zephyr" ]; then
+            echo "Contents of build/zephyr directory:"
+            ls -la build/zephyr/
+            
+            # Create artifacts directory
+            mkdir -p build/artifacts
+            
+            # Copy firmware files if they exist
+            if [ -f build/zephyr/zmk.uf2 ]; then
+              cp build/zephyr/zmk.uf2 "build/artifacts/${{ env.artifact_name }}.uf2"
+              echo "Copied zmk.uf2 to artifacts directory"
+            elif [ -f build/zephyr/zmk.bin ]; then
+              cp build/zephyr/zmk.bin "build/artifacts/${{ env.artifact_name }}.bin"
+              echo "Copied zmk.bin to artifacts directory"
+            else
+              echo "ERROR: No firmware file (zmk.uf2 or zmk.bin) found in build/zephyr/"
+              # List all files to see what was generated
+              find build -type f -name "*.uf2" -o -name "*.bin" | sort
+            fi
+          else
+            echo "ERROR: build/zephyr directory does not exist. Build may have failed."
+            # Check build output in other locations
+            find . -name "*.uf2" -o -name "*.bin" | sort
           fi
-          echo "Contents of build/artifacts directory:"
-          ls -la build/artifacts/
+          
+          # Show artifacts contents if directory exists
+          if [ -d "build/artifacts" ]; then
+            echo "Contents of build/artifacts directory:"
+            ls -la build/artifacts/
+          else
+            echo "ERROR: build/artifacts directory does not exist or is empty"
+          fi
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
