@@ -49,20 +49,22 @@ jobs:
           echo "artifact_name=${{ matrix.shield }}-nice_nano_v2-zmk" >> $GITHUB_ENV
           echo "display_name=${{ matrix.shield }} - nice_nano_v2" >> $GITHUB_ENV
           west build -s zmk/app -b nice_nano_v2 -- -DZMK_CONFIG=${GITHUB_WORKSPACE}/config ${{ env.extra_cmake_args }}
+          echo "Current directory: $(pwd)"
+          echo "Contents of build directory:"
+          ls -la build/
+          echo "Contents of build/zephyr directory:"
+          ls -la build/zephyr/
           mkdir -p build/artifacts
           if [ -f build/zephyr/zmk.uf2 ]; then
             cp build/zephyr/zmk.uf2 "build/artifacts/${{ env.artifact_name }}.uf2"
           elif [ -f build/zephyr/zmk.bin ]; then
             cp build/zephyr/zmk.bin "build/artifacts/${{ env.artifact_name }}.bin"
           fi
-
-      - name: Copy artifacts to host
-        run: |
-          mkdir -p /github/workspace/artifacts
-          cp -r build/artifacts/* /github/workspace/artifacts/
+          echo "Contents of build/artifacts directory:"
+          ls -la build/artifacts/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: firmware-${{ matrix.shield }}
-          path: artifacts
+          path: build/artifacts
